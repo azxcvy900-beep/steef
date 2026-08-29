@@ -5,9 +5,9 @@ export interface QueryOptions {
 }
 
 export interface DatabaseInterface<T> {
-  create(id: string, data: Partial<T>): Promise<T>;
-  get(id: string): Promise<T | null>;
-  update(id: string, data: Partial<T>): Promise<T>;
-  delete(id: string): Promise<boolean>;
-  query(options: QueryOptions): Promise<T[]>;
+  create(id: string, data: Partial<T>, ownerId: string): Promise<T>;
+  getById(id: string, ownerId: string): Promise<T | null>;
+  update(id: string, data: Partial<T>, ownerId: string): Promise<T>;
+  delete(id: string, ownerId: string): Promise<boolean>;
+  query(options: QueryOptions, ownerId: string): Promise<T[]>;
 }

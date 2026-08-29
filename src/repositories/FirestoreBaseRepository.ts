@@ -1,19 +1,7 @@
-import { db } from '@/lib/firebase/client';
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  query as firestoreQuery,
-  where as firestoreWhere,
-  orderBy as firestoreOrderBy,
-  limit as firestoreLimit,
-  getDocs,
-  WhereFilterOp,
-} from 'firebase/firestore';
+import 'server-only';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { DatabaseInterface, QueryOptions } from './DatabaseInterface';
+import { WhereFilterOp } from 'firebase-admin/firestore';
 
 export class FirestoreBaseRepository<T> implements DatabaseInterface<T> {
   protected collectionName: string;
@@ -22,58 +10,99 @@ export class FirestoreBaseRepository<T> implements DatabaseInterface<T> {
     this.collectionName = collectionName;
   }
 
-  async create(id: string, data: Partial<T>): Promise<T> {
-    const docRef = doc(db, this.collectionName, id);
+  async create(id: string, data: Partial<T>, ownerId: string): Promise<T> {
+    const adminDb = getAdminDb();
+    const docRef = adminDb.collection(this.collectionName).doc(id);
     const now = new Date();
-    const docData = { ...data, createdAt: now, updatedAt: now };
-    await setDoc(docRef, docData);
-    return { id, ...docData } as unknown as T;
+    const payload = {
+      ...data,
+      userId: ownerId, // Forcefully inject ownerId to prevent spoofing
+      createdAt: now,
+      updatedAt: now,
+    };
+    await docRef.set(payload);
+    return { id, ...payload } as unknown as T;
   }
 
-  async get(id: string): Promise<T | null> {
-    const docRef = doc(db, this.collectionName, id);
-    const snapshot = await getDoc(docRef);
-    if (!snapshot.exists()) return null;
-    return { id: snapshot.id, ...snapshot.data() } as unknown as T;
+  async getById(id: string, ownerId: string): Promise<T | null> {
+    const adminDb = getAdminDb();
+    const docRef = adminDb.collection(this.collectionName).doc(id);
+    const docSnap = await docRef.get();
+    
+    if (!docSnap.exists) {
+      return null;
+    }
+    
+    const data = docSnap.data();
+    // Server-side Authorization Check
+    if (data?.userId !== ownerId) {
+      throw new Error(`Unauthorized access to document ${id} in ${this.collectionName}`);
+    }
+    
+    return { id: docSnap.id, ...data } as T;
   }
 
-  async update(id: string, data: Partial<T>): Promise<T> {
-    const docRef = doc(db, this.collectionName, id);
-    const updateData = { ...data, updatedAt: new Date() };
-    await updateDoc(docRef, updateData as any);
-    const updated = await this.get(id);
-    return updated as T;
+  async update(id: string, data: Partial<T>, ownerId: string): Promise<T> {
+    const adminDb = getAdminDb();
+    // First fetch to verify ownership
+    await this.getById(id, ownerId);
+
+    const docRef = adminDb.collection(this.collectionName).doc(id);
+    const payload = {
+      ...data,
+      // Prevent changing the userId
+      userId: ownerId,
+      updatedAt: new Date(),
+    };
+    await docRef.update(payload);
+    
+    const updatedDoc = await docRef.get();
+    return { id: updatedDoc.id, ...updatedDoc.data() } as T;
   }
 
-  async delete(id: string): Promise<boolean> {
-    const docRef = doc(db, this.collectionName, id);
-    await deleteDoc(docRef);
+  async delete(id: string, ownerId: string): Promise<boolean> {
+    const adminDb = getAdminDb();
+    // First fetch to verify ownership
+    await this.getById(id, ownerId);
+
+    const docRef = adminDb.collection(this.collectionName).doc(id);
+    await docRef.delete();
     return true;
   }
 
-  async query(options: QueryOptions): Promise<T[]> {
-    const colRef = collection(db, this.collectionName);
-    const constraints: any[] = [];
+  async query(options: QueryOptions, ownerId: string): Promise<T[]> {
+    const adminDb = getAdminDb();
+    let q: FirebaseFirestore.Query = adminDb.collection(this.collectionName);
+
+    // Forcefully apply authorization filter
+    q = q.where('userId', '==', ownerId);
 
     if (options.where) {
-      options.where.forEach((w) => {
-        constraints.push(firestoreWhere(w.field, w.operator as WhereFilterOp, w.value));
+      options.where.forEach(clause => {
+        // Skip adding userId again if it's already there
+        if (clause.field !== 'userId') {
+          q = q.where(clause.field, clause.operator as WhereFilterOp, clause.value);
+        }
       });
     }
 
     if (options.orderBy) {
-      options.orderBy.forEach((o) => {
-        constraints.push(firestoreOrderBy(o.field, o.direction));
+      options.orderBy.forEach(order => {
+        q = q.orderBy(order.field, order.direction);
       });
     }
 
     if (options.limit) {
-      constraints.push(firestoreLimit(options.limit));
+      q = q.limit(options.limit);
     }
 
-    const q = firestoreQuery(colRef, ...constraints);
-    const snapshot = await getDocs(q);
+    const querySnapshot = await q.get();
+    const results: T[] = [];
+    
+    querySnapshot.forEach(doc => {
+      results.push({ id: doc.id, ...doc.data() } as T);
+    });
 
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as unknown as T);
+    return results;
   }
 }

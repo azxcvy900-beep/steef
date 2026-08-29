@@ -5,6 +5,8 @@ import { Task } from '@/types/models.types';
 // Hardcoded for Phase 2 until Auth is implemented
 const USER_ID = 'user_001';
 
+export const dynamic = 'force-dynamic';
+
 function getPriorityColor(priority: string) {
   switch (priority) {
     case 'CRITICAL': return 'bg-red-900/50 text-red-400 border-red-800';

@@ -110,19 +110,17 @@ export class ExecutiveAgent {
         try {
           if (classification.action.type === 'CREATE_TASK' && this.taskRepo) {
             await this.taskRepo.create(crypto.randomUUID(), {
-              userId: input.userId,
               title: classification.action.data.title || input.message,
               status: 'TODO',
               priority: classification.action.data.priority || 'MEDIUM',
-            });
+            }, input.userId); // Pass ownerId for authorization
             actionsPerformed.push('created_task');
           } else if (classification.action.type === 'SAVE_MEMORY' && this.memoryRepo) {
             await this.memoryRepo.create(crypto.randomUUID(), {
-              userId: input.userId,
               type: classification.action.data.memoryType || 'FACT',
               content: classification.action.data.content,
               importance: 3,
-            });
+            }, input.userId); // Pass ownerId for authorization
             actionsPerformed.push('saved_memory');
             memoryUpdated = true;
           }

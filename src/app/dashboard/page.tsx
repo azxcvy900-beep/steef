@@ -4,6 +4,8 @@ import { getActiveUserTasks } from '@/app/actions/tasks';
 // Hardcoded for Phase 2 until Auth is implemented
 const USER_ID = 'user_001';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const activeTasks = await getActiveUserTasks(USER_ID);
   
