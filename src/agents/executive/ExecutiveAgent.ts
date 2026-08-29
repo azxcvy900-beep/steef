@@ -204,11 +204,14 @@ export class ExecutiveAgent {
         maxTokens: 512,
       });
 
+      console.log('[DEBUG] Classify Raw:', raw);
+
       // Extract JSON from response
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No JSON in classification response');
 
       const parsed = JSON.parse(jsonMatch[0]);
+      console.log('[DEBUG] Classify Parsed:', parsed);
       return {
         intent: (parsed.intent as IntentType) ?? 'UNKNOWN',
         confidence: parsed.confidence ?? 0.5,

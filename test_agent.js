@@ -17,7 +17,7 @@ const app = initializeApp({
 const db = getFirestore(app);
 
 async function testAgenticWorkflow() {
-  const url = 'http://localhost:3000/api/chat';
+  const url = 'https://steef.vercel.app/api/chat';
   
   async function chat(msg) {
     console.log(`\nUser: ${msg}`);
