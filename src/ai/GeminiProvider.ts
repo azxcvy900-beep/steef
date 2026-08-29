@@ -18,9 +18,9 @@ import type {
  */
 export class GeminiProvider implements AIProvider {
   readonly name = 'google-gemini';
-  readonly defaultModel = 'gemini-3.7-flash';
-  readonly cheapModel = 'gemini-3.5-flash-lite';
-  readonly powerfulModel = 'gemini-3.7-flash'; // Fallback for powerful
+  readonly defaultModel = 'gemini-3.6-flash';
+  readonly cheapModel = 'gemini-3.6-flash';
+  readonly powerfulModel = 'gemini-3.6-flash'; // Fallback for powerful
 
   private readonly apiKey: string;
   private readonly baseUrl =
@@ -142,10 +142,9 @@ export class GeminiProvider implements AIProvider {
    */
   estimateCost(inputTokens: number, outputTokens: number, model: string): number {
     const pricing: Record<string, { input: number; output: number }> = {
-      'gemini-3.7-flash': { input: 0.000075, output: 0.0003 },
-      'gemini-3.5-flash-lite': { input: 0.0000375, output: 0.00015 },
+      'gemini-3.6-flash': { input: 0.000075, output: 0.0003 },
     };
-    const p = pricing[model] ?? pricing['gemini-3.7-flash'];
+    const p = pricing[model] ?? pricing['gemini-3.6-flash'];
     return (inputTokens / 1000) * p.input + (outputTokens / 1000) * p.output;
   }
 }
