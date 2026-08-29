@@ -201,17 +201,14 @@ export class ExecutiveAgent {
       const raw = await this.aiProvider.complete(prompt, {
         model: this.aiProvider.cheapModel, // Use cheap model for classification
         temperature: 0.1,
-        maxTokens: 512,
+        maxTokens: 4096, // Increased to accommodate 'thinking' models that use hidden tokens
       });
-
-      console.log('[DEBUG] Classify Raw:', raw);
 
       // Extract JSON from response
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No JSON in classification response');
 
       const parsed = JSON.parse(jsonMatch[0]);
-      console.log('[DEBUG] Classify Parsed:', parsed);
       return {
         intent: (parsed.intent as IntentType) ?? 'UNKNOWN',
         confidence: parsed.confidence ?? 0.5,
