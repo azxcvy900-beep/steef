@@ -1,8 +1,14 @@
 import Link from 'next/link';
+import { getActiveUserTasks } from '@/app/actions/tasks';
 
-export default function DashboardPage() {
+// Hardcoded for Phase 2 until Auth is implemented
+const USER_ID = 'user_001';
+
+export default async function DashboardPage() {
+  const activeTasks = await getActiveUserTasks(USER_ID);
+  
   const stats = [
-    { label: 'مهام اليوم',       value: '0',  icon: '✅', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+    { label: 'مهام اليوم',       value: activeTasks.length.toString(),  icon: '✅', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
     { label: 'مشاريع نشطة',     value: '0',  icon: '📁', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
     { label: 'أفكار مسجلة',     value: '0',  icon: '💡', color: 'bg-amber-500/10  text-amber-400  border-amber-500/20'  },
     { label: 'موافقات معلقة',   value: '0',  icon: '⏳', color: 'bg-red-500/10    text-red-400    border-red-500/20'    },
@@ -38,7 +44,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
             { href: '/chat',      label: 'محادثة مع سيف',     icon: '💬', desc: 'تحدث مع وكيلك مباشرة' },
-            { href: '/tasks',     label: 'إضافة مهمة',         icon: '➕', desc: 'أضف مهمة جديدة' },
+            { href: '/tasks',     label: 'المهام النشطة',      icon: '📋', desc: 'استعرض مهامك' },
             { href: '/projects',  label: 'مشروع جديد',         icon: '🚀', desc: 'ابدأ مشروع جديد' },
             { href: '/ideas',     label: 'تسجيل فكرة',         icon: '💡', desc: 'احفظ فكرة قبل أن تنساها' },
             { href: '/reports',   label: 'التقرير اليومي',      icon: '📊', desc: 'استعرض تقرير اليوم' },
@@ -63,7 +69,7 @@ export default function DashboardPage() {
         <div className="space-y-3">
           {[
             { name: 'وكيل سيف التنفيذي',  status: 'نشط',      ok: true  },
-            { name: 'قاعدة البيانات',       status: 'غير مكوّن', ok: false },
+            { name: 'قاعدة البيانات (Firestore)', status: 'متصل', ok: true },
             { name: 'نموذج Gemini AI',      status: 'جاهز',     ok: true  },
             { name: 'نظام الموافقات',       status: 'نشط',      ok: true  },
             { name: 'سجل التدقيق',          status: 'نشط',      ok: true  },

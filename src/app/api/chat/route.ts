@@ -7,21 +7,26 @@ import { ExecutiveAgent } from '@/agents/executive/ExecutiveAgent';
 import { GeminiProvider } from '@/ai/GeminiProvider';
 import type { AgentInput, Message } from '@/types/agent.types';
 
+import { MemoryRepository } from '@/repositories/MemoryRepository';
+import { TaskRepository } from '@/repositories/TaskRepository';
+
 // Initialize AI provider and agent (singleton pattern)
 function getAgent(): ExecutiveAgent {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
   const provider = new GeminiProvider(apiKey);
-  return new ExecutiveAgent(provider);
+  const memoryRepo = new MemoryRepository();
+  const taskRepo = new TaskRepository();
+  return new ExecutiveAgent(provider, memoryRepo, taskRepo);
 }
 
 export async function POST(req: NextRequest) {
   try {
     console.log('[API/CHAT] Request received');
     const body = await req.json();
-    const { message, conversationHistory = [], userId = 'anonymous' } = body;
+    const { message, conversationHistory = [], userId = 'user_001' } = body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return NextResponse.json(

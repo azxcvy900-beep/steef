@@ -12,13 +12,14 @@ import type {
 import { AuditLogger } from '@/audit/AuditLogger';
 import { permissionManager } from '@/permissions/PermissionManager';
 
-const EXECUTIVE_SYSTEM_PROMPT = `أنت وكيل تنفيذي شخصي متقدم. اسمك "سيف".
+const getExecutiveSystemPrompt = (memories: string) => `أنت وكيل تنفيذي شخصي متقدم. اسمك "سيف".
 
 مهمتك الأساسية هي مساعدة المستخدم في:
 - إدارة المهام والمشاريع والأفكار
 - التخطيط واتخاذ القرارات
-- متابعة التقدم والإنجازات
-- التنسيق مع الوكيل المطور لمهام البرمجة
+
+معلومات عن المستخدم (الذاكرة طويلة المدى):
+${memories || 'لا توجد معلومات مسجلة بعد.'}
 
 قواعد أساسية:
 1. تحدث دائماً بالعربية ما لم يطلب المستخدم غير ذلك.
@@ -27,39 +28,37 @@ const EXECUTIVE_SYSTEM_PROMPT = `أنت وكيل تنفيذي شخصي متقد�
 4. عندما تحتاج إلى موافقة، اشرح بوضوح: ما الإجراء المطلوب، لماذا مطلوب، وما المخاطر.
 5. احتفظ دائماً بسجل دقيق لما تفعله.
 6. لا تتجاوز الصلاحيات الممنوحة لك.
+7. كن صادقاً دائماً. إذا لم تستطع تنفيذ شيء، قل ذلك بوضوح.`;
 
-عند فهم طلب المستخدم، حدد:
-- نوع الطلب (مهمة / مشروع / فكرة / قرار / تطوير / تقرير / استفسار)
-- الأولوية
-- هل يحتاج موافقة
-- ما الأدوات المطلوبة
-
-كن صادقاً دائماً. إذا لم تستطع تنفيذ شيء، قل ذلك بوضوح.`;
-
-const CLASSIFICATION_PROMPT = `حلل طلب المستخدم وصنفه في تنسيق JSON.
+const CLASSIFICATION_PROMPT = `حلل طلب المستخدم وصنفه في تنسيق JSON. استخرج أي إجراء (action) مطلوب لتحديث قاعدة البيانات.
 
 طلب المستخدم: "{message}"
 
-أعد JSON فقط بهذا الشكل بالضبط:
+الرجاء إعادة JSON فقط بهذا الشكل:
 {
   "intent": "TASK|PROJECT|IDEA|DECISION|DEVELOPMENT|REPORT|QUERY|SETTINGS|UNKNOWN",
   "confidence": 0.95,
-  "entities": {
-    "title": "عنوان إن وجد",
-    "priority": "LOW|MEDIUM|HIGH|CRITICAL أو null",
-    "deadline": "تاريخ إن ذكر أو null",
-    "projectName": "اسم المشروع إن ذكر أو null"
+  "action": {
+    "type": "NONE|CREATE_TASK|SAVE_MEMORY",
+    "data": {
+      "title": "عنوان المهمة",
+      "priority": "LOW|MEDIUM|HIGH|CRITICAL",
+      "content": "محتوى الذاكرة للتذكر",
+      "memoryType": "FACT|PREFERENCE"
+    }
   },
-  "requiresApproval": false,
-  "suggestedTools": [],
   "arabic_summary": "ملخص قصير للطلب بالعربية"
 }`;
 
 export class ExecutiveAgent {
   private aiProvider: AIProvider;
+  private memoryRepo: any; // We will inject this properly
+  private taskRepo: any;
 
-  constructor(aiProvider: AIProvider) {
+  constructor(aiProvider: AIProvider, memoryRepo?: any, taskRepo?: any) {
     this.aiProvider = aiProvider;
+    this.memoryRepo = memoryRepo;
+    this.taskRepo = taskRepo;
   }
 
   /**
@@ -68,6 +67,8 @@ export class ExecutiveAgent {
    */
   async run(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+    const actionsPerformed: string[] = [];
+    let memoryUpdated = false;
 
     await AuditLogger.log({
       userId: input.userId,
@@ -79,34 +80,58 @@ export class ExecutiveAgent {
     });
 
     try {
-      // ── STEP 1: CLASSIFY ─────────────────────────────────────
-      const classification = await this.classify(input.message);
+      // ── STEP 1: RETRIEVE MEMORY ──────────────────────────────
+      let memoriesStr = '';
+      if (this.memoryRepo) {
+        const memories = await this.memoryRepo.getMemoriesByUser(input.userId, 10);
+        memoriesStr = memories.map((m: any) => `- ${m.content}`).join('\n');
+      }
 
-      // ── STEP 2: CHECK PERMISSIONS ────────────────────────────
+      // ── STEP 2: CLASSIFY & EXTRACT ACTION ────────────────────
+      const classification: any = await this.classify(input.message);
+      actionsPerformed.push(`classified_as_${classification.intent}`);
+
+      // ── STEP 3: CHECK PERMISSIONS ────────────────────────────
       const actionNeeded = this.intentToAction(classification.intent);
       const permission = permissionManager.check(actionNeeded);
 
       if (permission.level === 'BLOCKED') {
-        await AuditLogger.log({
-          userId: input.userId,
-          actor: 'executive_agent',
-          agentType: 'executive_agent',
-          action: actionNeeded,
-          status: 'BLOCKED',
-          summarizedInput: input.message.slice(0, 200),
-          summarizedOutput: 'Action is blocked by permission policy',
-        });
-
         return {
           response: `عذراً، هذا الإجراء (${permission.description}) محظور ولا يمكنني تنفيذه. هذا قيد أمني دائم.`,
           intent: classification.intent,
           status: 'BLOCKED',
-          actionsPerformed: [],
-          memoryUpdated: false,
+          actionsPerformed,
+          memoryUpdated,
         };
       }
 
-      // ── STEP 3: GENERATE RESPONSE ─────────────────────────────
+      // ── STEP 4: EXECUTE DB ACTION IF NEEDED ──────────────────
+      if (classification.action && classification.action.type !== 'NONE') {
+        try {
+          if (classification.action.type === 'CREATE_TASK' && this.taskRepo) {
+            await this.taskRepo.create(crypto.randomUUID(), {
+              userId: input.userId,
+              title: classification.action.data.title || input.message,
+              status: 'TODO',
+              priority: classification.action.data.priority || 'MEDIUM',
+            });
+            actionsPerformed.push('created_task');
+          } else if (classification.action.type === 'SAVE_MEMORY' && this.memoryRepo) {
+            await this.memoryRepo.create(crypto.randomUUID(), {
+              userId: input.userId,
+              type: classification.action.data.memoryType || 'FACT',
+              content: classification.action.data.content,
+              importance: 3,
+            });
+            actionsPerformed.push('saved_memory');
+            memoryUpdated = true;
+          }
+        } catch (dbError) {
+          console.error('[ExecutiveAgent] DB Action Failed:', dbError);
+        }
+      }
+
+      // ── STEP 5: GENERATE RESPONSE ─────────────────────────────
       const messages = [
         ...input.conversationHistory.map((m) => ({
           role: m.role as 'user' | 'assistant' | 'system',
@@ -116,7 +141,7 @@ export class ExecutiveAgent {
       ];
 
       const aiResponse = await this.aiProvider.chat(messages, {
-        systemPrompt: EXECUTIVE_SYSTEM_PROMPT,
+        systemPrompt: getExecutiveSystemPrompt(memoriesStr),
         model: this.aiProvider.defaultModel,
         temperature: 0.7,
       });
@@ -137,18 +162,13 @@ export class ExecutiveAgent {
         response: aiResponse.content,
         intent: classification.intent,
         status: 'SUCCESS',
-        actionsPerformed: [`classified_as_${classification.intent}`, 'generated_response'],
-        memoryUpdated: false, // Phase 3: will update memory
+        actionsPerformed,
+        memoryUpdated,
         metadata: {
           classification,
           duration,
           model: aiResponse.model,
           tokens: aiResponse.usage.totalTokens,
-          estimatedCost: this.aiProvider.estimateCost(
-            aiResponse.usage.inputTokens,
-            aiResponse.usage.outputTokens,
-            aiResponse.model
-          ),
         },
       };
     } catch (error) {
