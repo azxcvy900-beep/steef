@@ -81,6 +81,7 @@ export default function ChatPage() {
       const assistantMsg: ChatMessage = {
         id: generateId(),
         role: 'assistant',
+        isLoading: false,
         content: res.ok
           ? data.response
           : 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.',
@@ -186,48 +187,55 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   return (
     <div
       className={cn(
-        'flex gap-3 message-enter',
-        isUser ? 'flex-row-reverse' : 'flex-row'
+        'flex w-full message-enter',
+        isUser ? 'justify-end' : 'justify-start'
       )}
     >
-      {/* Avatar */}
       <div
         className={cn(
-          'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold',
-          isUser
-            ? 'bg-indigo-600 text-white'
-            : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+          'flex gap-3 max-w-[85%]',
+          isUser ? 'flex-row-reverse' : 'flex-row'
         )}
       >
-        {isUser ? 'أ' : '⚡'}
-      </div>
+        {/* Avatar */}
+        <div
+          className={cn(
+            'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold',
+            isUser
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+          )}
+        >
+          {isUser ? 'أ' : '⚡'}
+        </div>
 
-      {/* Bubble */}
-      <div
-        className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
-          isUser
-            ? 'bg-indigo-600 text-white rounded-tl-sm'
-            : 'bg-gray-800 text-gray-100 rounded-tr-sm border border-gray-700',
-          message.isLoading && 'opacity-70'
-        )}
-      >
-        {message.isLoading ? (
-          <TypingIndicator />
-        ) : (
-          <FormattedContent content={message.content} />
-        )}
+        {/* Bubble */}
+        <div
+          className={cn(
+            'rounded-2xl px-4 py-3 text-sm leading-relaxed overflow-hidden',
+            isUser
+              ? 'bg-indigo-600 text-white rounded-tl-sm'
+              : 'bg-gray-800 text-gray-100 rounded-tr-sm border border-gray-700',
+            message.isLoading && 'opacity-70'
+          )}
+        >
+          {message.isLoading ? (
+            <TypingIndicator />
+          ) : (
+            <FormattedContent content={message.content || '...'} />
+          )}
 
-        {!message.isLoading && (
-          <div
-            className={cn(
-              'text-xs mt-2 opacity-50',
-              isUser ? 'text-indigo-200 text-left' : 'text-gray-400 text-right'
-            )}
-          >
-            {formatRelativeAr(message.timestamp)}
-          </div>
-        )}
+          {!message.isLoading && (
+            <div
+              className={cn(
+                'text-xs mt-2 opacity-50',
+                isUser ? 'text-indigo-200 text-left' : 'text-gray-400 text-right'
+              )}
+            >
+              {formatRelativeAr(message.timestamp)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
