@@ -184,6 +184,19 @@ export default function ChatPage() {
 function ChatBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
 
+  const avatar = (
+    <div
+      className={cn(
+        'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold',
+        isUser
+          ? 'bg-indigo-600 text-white'
+          : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+      )}
+    >
+      {isUser ? 'أ' : '⚡'}
+    </div>
+  );
+
   return (
     <div
       className={cn(
@@ -191,31 +204,16 @@ function ChatBubble({ message }: { message: ChatMessage }) {
         isUser ? 'justify-end' : 'justify-start'
       )}
     >
-      <div
-        className={cn(
-          'flex gap-3 max-w-[85%]',
-          isUser ? 'flex-row-reverse' : 'flex-row'
-        )}
-      >
-        {/* Avatar */}
-        <div
-          className={cn(
-            'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold',
-            isUser
-              ? 'bg-indigo-600 text-white'
-              : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
-          )}
-        >
-          {isUser ? 'أ' : '⚡'}
-        </div>
+      <div className="flex gap-3 max-w-[85%]">
+        {!isUser && avatar}
 
         {/* Bubble */}
         <div
           className={cn(
             'rounded-2xl px-4 py-3 text-sm leading-relaxed overflow-hidden',
             isUser
-              ? 'bg-indigo-600 text-white rounded-tl-sm'
-              : 'bg-gray-800 text-gray-100 rounded-tr-sm border border-gray-700',
+              ? 'bg-indigo-600 text-white rounded-tr-sm'
+              : 'bg-gray-800 text-gray-100 rounded-tl-sm border border-gray-700',
             message.isLoading && 'opacity-70'
           )}
         >
@@ -229,13 +227,15 @@ function ChatBubble({ message }: { message: ChatMessage }) {
             <div
               className={cn(
                 'text-xs mt-2 opacity-50',
-                isUser ? 'text-indigo-200 text-left' : 'text-gray-400 text-right'
+                isUser ? 'text-indigo-200 text-right' : 'text-gray-400 text-left'
               )}
             >
               {formatRelativeAr(message.timestamp)}
             </div>
           )}
         </div>
+
+        {isUser && avatar}
       </div>
     </div>
   );
