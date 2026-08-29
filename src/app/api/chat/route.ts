@@ -19,6 +19,7 @@ function getAgent(): ExecutiveAgent {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[API/CHAT] Request received');
     const body = await req.json();
     const { message, conversationHistory = [], userId = 'anonymous' } = body;
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const agent = getAgent();
+    console.log('[API/CHAT] Agent and Provider initialized. Calling Agent run loop...');
 
     const input: AgentInput = {
       message: message.trim(),
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     };
 
     const output = await agent.run(input);
+    console.log('[API/CHAT] Agent run loop completed with status:', output.status);
 
     return NextResponse.json({
       response: output.response,

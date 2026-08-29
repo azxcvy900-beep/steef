@@ -18,9 +18,9 @@ import type {
  */
 export class GeminiProvider implements AIProvider {
   readonly name = 'google-gemini';
-  readonly defaultModel = 'gemini-2.0-flash';
-  readonly cheapModel = 'gemini-2.0-flash-lite';
-  readonly powerfulModel = 'gemini-1.5-pro';
+  readonly defaultModel = 'gemini-3.7-flash';
+  readonly cheapModel = 'gemini-3.5-flash-lite';
+  readonly powerfulModel = 'gemini-3.7-flash'; // Fallback for powerful
 
   private readonly apiKey: string;
   private readonly baseUrl =
@@ -60,20 +60,28 @@ export class GeminiProvider implements AIProvider {
       };
     }
 
-    const url = `${this.baseUrl}/${model}:generateContent?key=${this.apiKey}`;
+    const url = `${this.baseUrl}/${model}:generateContent?key=***REDACTED***`;
+    const actualUrl = `${this.baseUrl}/${model}:generateContent?key=${this.apiKey}`;
+    
+    console.log(`[GeminiProvider] Calling Gemini API URL: ${url}`);
+    console.log(`[GeminiProvider] Request Body:`, JSON.stringify(body).slice(0, 300) + '...');
 
-    const res = await fetch(url, {
+    const res = await fetch(actualUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
+    console.log(`[GeminiProvider] Gemini HTTP Status: ${res.status} ${res.statusText}`);
+
     if (!res.ok) {
       const err = await res.text();
+      console.error(`[GeminiProvider] Gemini Error Code/Message:`, err);
       throw new Error(`[GeminiProvider] API error ${res.status}: ${err}`);
     }
 
     const data = await res.json();
+    console.log(`[GeminiProvider] Response parsed successfully.`);
 
     const content =
       data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
@@ -106,11 +114,10 @@ export class GeminiProvider implements AIProvider {
    */
   estimateCost(inputTokens: number, outputTokens: number, model: string): number {
     const pricing: Record<string, { input: number; output: number }> = {
-      'gemini-2.0-flash': { input: 0.000075, output: 0.0003 },
-      'gemini-2.0-flash-lite': { input: 0.0000375, output: 0.00015 },
-      'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
+      'gemini-3.7-flash': { input: 0.000075, output: 0.0003 },
+      'gemini-3.5-flash-lite': { input: 0.0000375, output: 0.00015 },
     };
-    const p = pricing[model] ?? pricing['gemini-2.0-flash'];
+    const p = pricing[model] ?? pricing['gemini-3.7-flash'];
     return (inputTokens / 1000) * p.input + (outputTokens / 1000) * p.output;
   }
 }
