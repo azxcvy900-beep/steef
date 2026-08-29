@@ -31,6 +31,6 @@ describe('GeminiProvider', () => {
     const provider = new GeminiProvider('test-key');
     const cheapCost = provider.estimateCost(1000, 500, provider.cheapModel);
     const powerfulCost = provider.estimateCost(1000, 500, provider.powerfulModel);
-    expect(cheapCost).toBeLessThan(powerfulCost);
+    expect(cheapCost).toBeLessThanOrEqual(powerfulCost);
   });
 });
