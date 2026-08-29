@@ -215,8 +215,10 @@ export class ExecutiveAgent {
         entities: parsed.entities ?? {},
         requiresApproval: parsed.requiresApproval ?? false,
         suggestedTools: parsed.suggestedTools ?? [],
+        action: parsed.action // Added action
       };
-    } catch {
+    } catch (err) {
+      console.error('[ExecutiveAgent] Classification Error:', err);
       return {
         intent: 'UNKNOWN',
         confidence: 0,

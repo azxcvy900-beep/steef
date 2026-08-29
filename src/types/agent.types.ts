@@ -56,6 +56,10 @@ export interface ClassificationResult {
   entities: Record<string, unknown>;
   requiresApproval: boolean;
   suggestedTools: string[];
+  action?: {
+    type: string;
+    data?: any;
+  };
 }
 
 export interface PlanStep {
