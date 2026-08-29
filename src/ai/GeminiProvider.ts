@@ -64,24 +64,52 @@ export class GeminiProvider implements AIProvider {
     const actualUrl = `${this.baseUrl}/${model}:generateContent?key=${this.apiKey}`;
     
     console.log(`[GeminiProvider] Calling Gemini API URL: ${url}`);
-    console.log(`[GeminiProvider] Request Body:`, JSON.stringify(body).slice(0, 300) + '...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+    
+    let res: Response;
+    const startTime = Date.now();
 
-    const res = await fetch(actualUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    try {
+      res = await fetch(actualUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const elapsed = Date.now() - startTime;
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error(`[GeminiProvider] TIMEOUT_ERROR: Request to ${model} aborted after ${elapsed}ms`);
+        throw new Error(`[GeminiProvider] TIMEOUT_ERROR`);
+      }
+      console.error(`[GeminiProvider] NETWORK_ERROR: ${error instanceof Error ? error.message : 'Unknown'} (Elapsed: ${elapsed}ms)`);
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
-    console.log(`[GeminiProvider] Gemini HTTP Status: ${res.status} ${res.statusText}`);
+    const elapsed = Date.now() - startTime;
+    console.log(`[GeminiProvider] HTTP Status: ${res.status} ${res.statusText} (Model: ${model}, Time: ${elapsed}ms)`);
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error(`[GeminiProvider] Gemini Error Code/Message:`, err);
-      throw new Error(`[GeminiProvider] API error ${res.status}: ${err}`);
+      // Consume the body so it doesn't leak memory, but don't expose it in the thrown error
+      await res.text().catch(() => ''); 
+      
+      let errorType = 'API_ERROR';
+      if (res.status === 503) errorType = 'SERVICE_UNAVAILABLE';
+      if (res.status === 429) errorType = 'RATE_LIMIT_EXCEEDED';
+      if (res.status === 400) errorType = 'BAD_REQUEST';
+      if (res.status === 403) errorType = 'PERMISSION_DENIED';
+      if (res.status === 404) errorType = 'MODEL_NOT_FOUND';
+
+      console.error(`[GeminiProvider] ${errorType}: HTTP ${res.status} (Model: ${model}, Time: ${elapsed}ms)`);
+      throw new Error(`[GeminiProvider] ${errorType} ${res.status}`);
     }
 
     const data = await res.json();
-    console.log(`[GeminiProvider] Response parsed successfully.`);
+    console.log(`[GeminiProvider] Response parsed successfully (Time: ${elapsed}ms).`);
 
     const content =
       data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
